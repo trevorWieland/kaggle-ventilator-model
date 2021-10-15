@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "kaggle-ventilator-model"
+version = "0.1.0"
+description = "A model built to solve the Ventilator Pressure Prediction problem at Kaggle"
+authors = ["Trevor Wieland"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.6.1"
+pandas = "^1.1.0"
+
+[tool.poetry.dev-dependencies]
+jupyter = "^1.0.0"
+pytest = "^6.2.5"
+kaggle = "^1.5.12"
+plotly = "^5.3.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
