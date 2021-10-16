@@ -10,13 +10,19 @@ class AbstractModel(ABC):
     """
 
     @abstractmethod
-    def fit(self, data: pd.DataFrame):
+    def fit(
+        self,
+        X: pd.DataFrame,
+        Y: pd.DataFrame,
+        val_X: pd.DataFrame,
+        val_Y: pd.DataFrame
+    ):
         """
         A method to train the model, using some data
         """
 
     @abstractmethod
-    def predict(self, data: pd.DataFrame) -> pd.DataFrame:
+    def predict(self, X: pd.DataFrame) -> pd.DataFrame:
         """
         A method to use the model, predicting on some data
         """
