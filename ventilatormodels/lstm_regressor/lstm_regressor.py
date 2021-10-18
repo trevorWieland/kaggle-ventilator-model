@@ -1,5 +1,5 @@
 from ..abstract_model import AbstractModel
-from ..datautils import timesplit_data, untimesplit_data
+from ..datautils import *
 import pandas as pd
 import numpy as np
 
@@ -81,11 +81,12 @@ class LSTMRegressor(AbstractModel):
 
     def fit(
         self,
-        X: pd.DataFrame,
-        Y: pd.DataFrame,
-        val_X: Optional[pd.DataFrame] = None,
-        val_Y: Optional[pd.DataFrame] = None,
+        X: np.ndarray,
+        Y: np.ndarray,
+        val_X: Optional[np.ndarray] = None,
+        val_Y: Optional[np.ndarray] = None,
         epochs: int = 300,
+        patience: int = 25,
         verbose: int = 1
     ):
         """
@@ -94,17 +95,61 @@ class LSTMRegressor(AbstractModel):
 
         #Data Checking
         assert X.shape[2] == self.n_features
+        assert X.shape[0] == Y.shape[0]
+        assert X.shape[1] == Y.shape[1]
+        assert X.shape[1] == 80
 
 
         #Train model
-        
+        if val_X is None or val_Y is None:
+            es = EarlyStopping(
+                monitor="loss",
+                patience=patience,
+                verbose=verbose,
+                restore_best_weights=True
+            )
+
+            self.model.fit(
+                X,
+                Y,
+                epochs=epochs,
+                verbose=verbose,
+                callbacks=[es]
+            )
+        else:
+            assert val_X.shape[2] == self.n_features
+            assert val_X.shape[0] == val_Y.shape[0]
+            assert val_X.shape[1] == val_Y.shape[1]
+            assert val_X.shape[1] == 80
+
+            es = EarlyStopping(
+                monitor="val_loss",
+                patience=patience,
+                verbose=verbose,
+                restore_best_weights=True
+            )
+
+            self.model.fit(
+                X,
+                Y,
+                epochs=epochs,
+                verbose=verbose,
+                validation_data=(val_X, val_Y),
+                callbacks=[es]
+            )
 
 
-
-    def predict(self, data: pd.DataFrame) -> pd.DataFrame:
+    def predict(self, X: np.ndarray) -> np.ndarray:
         """
         A method to use the model, predicting on some data
         """
+
+        assert X.shape[2] == self.n_features
+        assert X.shape[1] == 80
+
+        Y = self.model.predict(X)
+
+        return Y
 
     def save_model(self, model_path: str):
         """

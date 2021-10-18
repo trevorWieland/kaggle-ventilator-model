@@ -2,112 +2,105 @@ import numpy as np
 import pandas as pd
 
 from typing import List, Optional, Tuple
+from tqdm import tqdm
 
-def timesplit_data(
-    data: pd.DataFrame,
-    timesteps: int
-) -> np.ndarray:
+def scale_data(
+        data: pd.DataFrame,
+        feature_columns: list = ["R", "C", "time_step", "u_in", "u_out"],
+        output_col: str = "pressure"
+    ) -> Tuple[pd.DataFrame, pd.Series, pd.Series]:
     """
-    Transforms a __WIDE__ pandas dataframe into a timesplit dataset ready for LSTM
-    model training.
-
-    (# Rows, # Features) -> (# Rows - # Timesteps, # Timesteps, # Features)
-
-    Input:
-        data:
-            A pandas dataframe in __WIDE__ format with feature columns and step index
-        timesteps:
-            The integer number of steps to include in the timesplit dataset for each entry
-
-    Output:
-        timesplit:
-            A numpy array of shape (# Rows - # Timesteps, # Timesteps, # Features),
-            which is the proper formatting for training a LSTM model.
-    """
-
-    #Parameter checking
-    ##TODO
-
-    #Split data into slices:
-    time_slices = [data.values]
-
-    for i in range(1, timesteps):
-        temp = data.shift(periods=i)
-
-        time_slices.append(temp.values)
-
-    #Stack and trim nans
-    timesplit = np.stack(time_slices, axis=1)
-
-    timesplit = timesplit[timesteps:, :, :]
-
-    return timesplit
-
-
-
-def untimesplit_data(
-    timesplit: np.ndarray,
-    feature_names: List[str]
-) -> pd.DataFrame:
-    """
-    Transforms a timesplit dataset back into a pandas dataframe in __WIDE__
-    format. Uses the mean value for smoothing across duplicate entries.
-
-    (# Rows, # Timesteps, # Features) -> (# Rows, # Features)
-
-    Input:
-        timesplit:
-            A numpy array of shape (# Rows, # Timesteps, # Features)
-        feature_names:
-            A list of string names to assign to the new pandas dataframe. Must be of length # Features
-
-    Output:
-        data:
-            A pandas dataframe in __WIDE__ format with shape (# Rows, # Features)
 
     """
 
-    #Data Parameter checking
-    ##TODO
+    scale_columns = feature_columns + [output_col]
 
+    means = data[scale_columns].mean()
+    stdevs = data[scale_columns].std()
 
-    #Extract time slices from the data and shift back values
-    time_slices = [fast_shift(timesplit[:, i, :], -1*i) for i in range(timesplit.shape[1])]
+    data[scale_columns] = (data[scale_columns] - means) / stdevs
 
-    #Stack the shifted timeslices back into one array, then take the average of the values to smooth them out
-    values = np.stack(time_slices, axis=1).mean(axis=1)
+    return data, means, stdevs
 
-    #Construct a dataframe from the values
-    data = pd.DataFrame(columns=feature_names, data=values)
-
-    return data
-
-
-def fast_shift(
-    arr: np.ndarray,
-    shift: int,
-    fill_value: np.float64 = np.nan
-) -> np.ndarray:
+def unscale_data(
+        Y_predictions: np.ndarray ,
+        means: pd.Series,
+        stdevs: pd.Series
+    ) -> np.ndarray:
     """
-    A fast shift function implemented in numpy, to shift values when comparing time slices.
-
-    Input:
-        arr:
-            A numpy array to shift
-        shift:
-            The integer number of places to shift
-        fill_value:
-            What to replace the old shifted values with if nothing fills the place.
 
     """
 
-    result = np.empty_like(arr)
-    if shift > 0:
-        result[:shift] = fill_value
-        result[shift:] = arr[:-shift]
-    elif shift < 0:
-        result[shift:] = fill_value
-        result[:shift] = arr[-shift:]
-    else:
-        result[:] = arr
-    return result
+    Y = (Y_predictions * stdevs[-1] + means[-1]).reshape((Y_predictions.shape[0] * Y_predictions.shape[1], 1))
+
+    return Y
+
+def export_predictions(
+        Y: np.ndarray,
+        ids: List[int],
+        output_path: str
+    ) -> pd.DataFrame:
+    """
+
+    """
+    final_df = pd.DataFrame()
+    final_df["id"] = ids
+    final_df["pressure"] = Y
+
+    final_df.to_csv(output_path)
+    return final_df
+
+def format_input_matrix(
+        data: pd.DataFrame,
+        feature_columns: list = ["R", "C", "time_step", "u_in", "u_out"],
+        index_columns: list = ["breath_id", "id"],
+        breath_col: str = "breath_id"
+    ) -> np.ndarray:
+    """
+
+    """
+
+    gp = data.groupby(index_columns).mean()
+    breath_values = list(set(data[breath_col]))
+
+    X = gp[feature_columns].values.reshape((-1, 80, len(feature_columns)))
+
+    return X
+
+def format_output_matrix(
+        data: pd.DataFrame,
+        output_col: str = "pressure",
+        index_columns: list = ["breath_id", "id"],
+        breath_col: str = "breath_id"
+    ) -> np.ndarray:
+    """
+
+    """
+
+    gp = data.groupby(index_columns).mean()
+    breath_values = list(set(data[breath_col]))
+
+    Y = gp[output_col].values.reshape((-1, 80))
+
+    return Y
+
+def train_val_split(
+        X: np.ndarray,
+        Y: np.ndarray,
+        train_samples: int = 70000
+    ) -> np.ndarray:
+    """
+
+    """
+
+    assert X.shape[0] == Y.shape[0]
+    assert X.shape[1] == Y.shape[1]
+    assert Y.shape[1] == 80
+
+    X_train = X[:train_samples, :, :]
+    Y_train = Y[:train_samples, :]
+
+    X_val = X[train_samples:, :, :]
+    Y_val = Y[train_samples:, :]
+
+    return X_train, Y_train, X_val, Y_val
