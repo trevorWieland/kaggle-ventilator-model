@@ -47,7 +47,7 @@ def export_predictions(
     final_df["id"] = ids
     final_df["pressure"] = Y
 
-    final_df.to_csv(output_path)
+    final_df.to_csv(output_path, index=False)
     return final_df
 
 def format_input_matrix(

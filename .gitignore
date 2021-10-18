@@ -131,3 +131,4 @@ dmypy.json
 #Extras
 .DS_Store
 kaggle-data/
+*.csv
